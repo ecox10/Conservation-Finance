@@ -9,6 +9,9 @@ import numpy
 import matplotlib.pyplot as plt
 import math
 import Chebyshev #see separate file where this funtion is defined
+import scipy
+import scipy.integrate
+import pulp
 
 ### Section One - Parameters
 ## Ecological Parameters
@@ -258,21 +261,22 @@ elif plot_fxn == 2:
     plt.legend(['Watershed 1', 'Watershed 2', 'Watershed 3'])
     plt.show()
 
-    #plt.plot(PWY[0] * WY1fxn, TV1fxn, 'r', PWY[1] * WY2fxn, TV2fxn, 'b', PWY[2] * WY3fxn, TV3fxn, 'g') #compile error here for some reason
-    #plt.xlabel('Value of water yield ($)')
-    #plt.ylabel('Value of timber ($)')
-    #plt.legend(['Watershed 1', 'Watershed 2', 'Watershed 3'])
-    #plt.show()
+    plt.plot(PWY[0] * WY1fxn, TV1fxn, 'r', PWY[1] * WY2fxn, TV2fxn, 'b', PWY[2] * WY3fxn, TV3fxn, 'g') #compile error here for some reason
+    plt.xlabel('Value of water yield ($)')
+    plt.ylabel('Value of timber ($)')
+    plt.legend(['Watershed 1', 'Watershed 2', 'Watershed 3'])
+    plt.show()
 #end
 
 ### Section 3 - Initial tomlab
 # toms t
+t = numpy.linspace(1, 10, num = 10)
 T = 100 # set final T
 Nset = [10, 20, 30]
-Domain = [0, 100]
+Domain = [0, K[0]]
 
 
-for i in range(len(Nset)): # collocation nodes (finer and finder grids)
+#for i in range(len(Nset)): # collocation nodes (finer and finder grids)
 
     # Spline finite element
     # finite element Use sfepy package
@@ -280,48 +284,70 @@ for i in range(len(Nset)): # collocation nodes (finer and finder grids)
     # Cheby collocation points Chebyshev()
 
 
-    # Initial Guess
-    if i == 1:
-        S1, S2, S3 = 0.5 * K[0], 0.5 * K[1], 0.5 * K[2]
-        x0 = [S1, S2, S3]
-        h1, h2, h3 = .25 * R[0] * K[0], .25 * R[1] * K[1], .25 * R[2] * K[2]
-    else
-        # Copy solution from previous Nset for initializing next Nset
-        # (finer grid)
+# Initial Guess
+#if i == 1:
+x0 = numpy.polynomial.chebyshev.chebval([0.5 * K[0], 0.5 * K[1], 0.5 * K[2], 0.25 * R[0] *K[0], 0.25 * R[1] * K[1], 0.25 * R[2] * K[2]], Domain)
+#else
 
-        # Look more at this
+# Copy solution from previous Nset for initializing next Nset
+# (finer grid)
+#x0 = numpy.polynomial.chebyshev.chebval([s1_init, s2_init, s3_init, h1_init, h2_init, h3_init])
+# end
 
-    # end
+cbox = numpy.polynomial.chebyshev.chebval([K[0] * 1.5, K[1] * 1.5, K[2] * 1.5, x0[3], x0[4], x0[5]], Domain)
 
-    #Specifying percent of watershed covered in Forest
-    Pi1 = z1 * S1/(1+z1*S1)
-    Pi2 = z2 * S2/(1+z2*S2)
-    Pi3 = z3 * S3/(1+z3*S3)
+cterm = [] # If we want to impose a T condition, we can add it here
+cbnd = [S0[0] * K[0], S0[1] * K[1], S0[2]* K[2]] # initial conditions
 
-    # Specifying water quality services (avoided costs $, 1000s)
-    PQ1 = 32 + ((z1 * S0[0] * K[0]/(1 + z1 * S0[0] * K[0])) - Pi1) * 3 * 0.19 * 11.3
-    PQ2 = 32 + ((z2 * S0[1] * K[1]/(1 + z2 * S0[1] * K[1])) - Pi2) * 3 * 0.19 * 11.3
-    PQ2 = 32 + ((z3 * S0[2] * K[2]/(1 + z3 * S0[2] * K[2])) - Pi3) * 3 * 0.19 * 11.3
+#Specifying percent of watershed covered in Forest
+Pi1 = z1 * x0[0]/(1+z1*x0[0])
+Pi2 = z2 * x0[1]/(1+z2*x0[1])
+Pi3 = z3 * x0[3]/(1+z3*x0[2])
 
-    # Specifying outdoor recreation (recreation days per year)
-    OR1 = a1 * (S1 ** b)
-    OR2 = a2 * (S2 ** b)
-    OR3 = a3 * (S3 ** b)
+# Specifying water quality services (avoided costs $, 1000s)
+PQ1 = 32 + ((z1 * S0[0] * K[0]/(1 + z1 * S0[0] * K[0])) - Pi1) * 3 * 0.19 * 11.3
+PQ2 = 32 + ((z2 * S0[1] * K[1]/(1 + z2 * S0[1] * K[1])) - Pi2) * 3 * 0.19 * 11.3
+PQ3 = 32 + ((z3 * S0[2] * K[2]/(1 + z3 * S0[2] * K[2])) - Pi3) * 3 * 0.19 * 11.3
 
-    # Specifying hunting (hunting days per year)
-    HT1 = g1 * Pi1 - g1 * (Pi1 ** 2)
-    HT2 = g2 * Pi2 - g2 * (Pi2 ** 2)
-    HT3 = g3 * Pi3 - g3 * (Pi3 ** 2)
+# Specifying outdoor recreation (recreation days per year)
+OR1 = a1 * (x0[0] ** b)
+OR2 = a2 * (x0[1] ** b)
+OR3 = a3 * (x0[2] ** b)
 
-    # Specifying water yeild (inches x area of watershed = cubic meters of water -> acre feet per year)
-    # 1 cubic meter = 0.000810714 AF
-    # 1 inch = 0.254 meters
-    # 1 sq mile = 2.29e6 sq miles
-    WY1 = (49 - 48.82209 - 0.14884 * Pi1) * 0.0254 * (A[0] * 2.59e6 * 0.000810714)
-    WY2 = (49 - 48.82209 - 0.14884 * Pi2) * 0.0254 * (A[1] * 2.59e6 * 0.000810714)
-    WY3 = (49 - 48.82209 - 0.14884 * Pi3) * 0.0254 * (A[2] * 2.59e6 * 0.000810714)
+# Specifying hunting (hunting days per year)
+HT1 = g1 * Pi1 - g1 * (Pi1 ** 2)
+HT2 = g2 * Pi2 - g2 * (Pi2 ** 2)
+HT3 = g3 * Pi3 - g3 * (Pi3 ** 2)
 
-    # Specifying grazing (animal unit months per year)
-    GZ1 = AUM[0] * (1 - Pi1) * A[0] / allot[0]
-    GZ2 = AUM[1] * (1 - Pi2) * A[1] / allot[1]
-    GZ3 = AUM[2] * (1 - Pi3) * A[2] / allot[2] 
+# Specifying water yeild (inches x area of watershed = cubic meters of water -> acre feet per year)
+# 1 cubic meter = 0.000810714 AF
+# 1 inch = 0.254 meters
+# 1 sq mile = 2.29e6 sq miles
+WY1 = (49 - 48.82209 - 0.14884 * Pi1) * 0.0254 * (A[0] * 2.59e6 * 0.000810714)
+WY2 = (49 - 48.82209 - 0.14884 * Pi2) * 0.0254 * (A[1] * 2.59e6 * 0.000810714)
+WY3 = (49 - 48.82209 - 0.14884 * Pi3) * 0.0254 * (A[2] * 2.59e6 * 0.000810714)
+
+# Specifying grazing (animal unit months per year)
+GZ1 = AUM[0] * (1 - Pi1) * A[0] / allot[0]
+GZ2 = AUM[1] * (1 - Pi2) * A[1] / allot[1]
+GZ3 = AUM[2] * (1 - Pi3) * A[2] / allot[2]
+
+# Specifying timber Harvesting
+TV1 = m0[0] * math.exp(m1[0] * x0[0])
+TV2 = m0[1] * math.exp(m1[1] * x0[1])
+TV3 = m0[2] * math.exp(m1[2] * x0[2])
+
+# Specifying fire hazard Probability
+F1 = 1 - math.exp(-lamda * (d1[0] * x0[0] + d1[1] * x0[1] + d1[2] * x0[2]) ** beta / beta)
+F2 = 1 - math.exp(-lamda * (d2[0] * x0[0] + d2[1] * x0[1] + d2[2] * x0[2]) ** beta / beta)
+F3 = 1 - math.exp(-lamda * (d3[0] * x0[0] + d3[1] * x0[1] + d3[2] * x0[2]) ** beta / beta)
+
+# Specifying the cost function
+C1 = c[0][0] * x0[3] + c[0][1] * x0[3] ** 2
+C2 = c[1][0] * x0[4] + c[1][1] * x0[4] ** 2
+C3 = c[2][0] * x0[5] + c[2][1] * x0[5] ** 2
+
+# Specifying the net benefits per year
+NB1 = PWY[0] * WY1 + POR[0] * OR1 + PHT[0] * HT1 + PGZ[0] * GZ1 + TV1 - PQ1 * WQ[0] - C1
+NB2 = PWY[1] * WY2 + POR[1] * OR2 + PHT[1] * HT2 + PGZ[1] * GZ2 + TV2 - PQ2 * WQ[1] - C2
+NB3 = PWY[2] * WY3 + POR[2] * OR3 + PHT[2] * HT3 + PGZ[2] * GZ3 + TV3 - PQ3 * WQ[2] - C3
