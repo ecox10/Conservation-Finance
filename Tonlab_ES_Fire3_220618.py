@@ -286,15 +286,28 @@ Domain = [0, K[0]]
 
 # Initial Guess
 #if i == 1:
-x0 = numpy.polynomial.chebyshev.chebval([0.5 * K[0], 0.5 * K[1], 0.5 * K[2], 0.25 * R[0] *K[0], 0.25 * R[1] * K[1], 0.25 * R[2] * K[2]], Domain)
-#else
 
+x0 = numpy.polynomial.chebyshev.chebval([0.5 * K[0], 0.5 * K[1], 0.5 * K[2], 0.25 * R[0] *K[0], 0.25 * R[1] * K[1], 0.25 * R[2] * K[2]], t) # Using chebyshev points
+
+"""
+# using gaussian points
+a, b = 0, 10
+f = lambda x: numpy.cos(x)
+# Gaussian default interval is [-1,1]
+deg = 6
+x, w = numpy.polynomial.legendre.leggauss(deg)
+# Translate from default interval
+x0 = 0.5 * (x + 1) * (b - a) + a
+# Using finite elements
+"""
+
+# else
 # Copy solution from previous Nset for initializing next Nset
 # (finer grid)
 #x0 = numpy.polynomial.chebyshev.chebval([s1_init, s2_init, s3_init, h1_init, h2_init, h3_init])
 # end
 
-cbox = numpy.polynomial.chebyshev.chebval([K[0] * 1.5, K[1] * 1.5, K[2] * 1.5, x0[3], x0[4], x0[5]], Domain)
+cbox = numpy.polynomial.chebyshev.chebval([K[0] * 1.5, K[1] * 1.5, K[2] * 1.5, x0[3], x0[4], x0[5]], t)
 
 cterm = [] # If we want to impose a T condition, we can add it here
 cbnd = [S0[0] * K[0], S0[1] * K[1], S0[2]* K[2]] # initial conditions
