@@ -104,14 +104,10 @@ plt.legend(['Watershed 1', 'Watershed 2', 'Watershed 3'])
 plt.show()
 
 # fire hazard probability
-F1fxn = numpy.linspace(0, 0, num = 100)
-F2fxn = numpy.linspace(0, 0, num = 100)
-F3fxn = numpy.linspace(0, 0, num = 100)
-for i in range(len(s)):
-    F1fxn[i] = 1 - numpy.exp(-lamda * (d1[0] * s[i] + d1[1] * s[i] + d1[2] * s[i]) ** beta / beta)
-    F2fxn[i] = 1 - numpy.exp(-lamda * (d2[0] * s[i] + d2[1] * s[i] + d2[2] * s[i]) ** beta / beta)
-    F3fxn[i] = 1 - numpy.exp(-lamda * (d3[0] * s[i] + d3[1] * s[i] + d3[2] * s[i]) ** beta / beta)
-# end
+F1fxn = 1 - numpy.exp(-lamda * (d1[0] * s + d1[1] * s + d1[2] * s) ** beta / beta)
+F2fxn = 1 - numpy.exp(-lamda * (d2[0] * s + d2[1] * s + d2[2] * s) ** beta / beta)
+F3fxn = 1 - numpy.exp(-lamda * (d3[0] * s + d3[1] * s + d3[2] * s) ** beta / beta)
+
 
 plt.plot(s, F1fxn, 'r', s, F2fxn, 'b', s, F3fxn, 'g')
 plt.ylabel('Probability fire has occured F(phi_i)')
@@ -258,7 +254,7 @@ elif plot_fxn == 2:
 
 ### Section 3 - Initial tomlab
 # toms t
-t = numpy.linspace(1, 10, num = 10)
+t = numpy.linspace(1, 80, num = 80)
 T = 100 # set final T
 Nset = [10, 20, 30]
 Domain = [0, K[0]]
@@ -352,3 +348,4 @@ C3 = c[2, 0] * x0[5] + c[2, 1] * x0[5] ** 2
 NB1 = PWY[0] * WY1 + POR[0] * OR1 + PHT[0] * HT1 + PGZ[0] * GZ1 + TV1 - PQ1 * WQ[0] - C1
 NB2 = PWY[1] * WY2 + POR[1] * OR2 + PHT[1] * HT2 + PGZ[1] * GZ2 + TV2 - PQ2 * WQ[1] - C2
 NB3 = PWY[2] * WY3 + POR[2] * OR3 + PHT[2] * HT3 + PGZ[2] * GZ3 + TV3 - PQ3 * WQ[2] - C3
+
