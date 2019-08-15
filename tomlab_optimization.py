@@ -11,7 +11,9 @@ from scipy.integrate import *
 from scipy.optimize import *
 from Tomlab_ES_Fire3_110618 import *
 import matplotlib.pyplot as plt
-# Define F
+import scipy.integrate as integrate
+
+# Define F - Imposing a negative integral to maximize instead of minimize
 def f(t):
     intgrl, abserr = quad(lambda t : - np.exp(delta_ * t) * ((1 - F1) * NB1 + (1 - F2) * NB2 + (1 - F3) * NB3), 0, np.inf)
     return intgrl
@@ -20,16 +22,38 @@ def f(t):
 # and m_i >= 0
 x0 = np.array([S0[0] * K[0], S0[1] * K[1], S0[2] * K[2]], dtype = np.float128) #initial condition
 # Integrate the above
-l = np.linspace(1,10,num = 10)
+
 res = minimize(f, x0, method = 'Nelder-Mead')
+
+r = 0.05
+m = 0.5
 # Interpolate solutions off of the collocation nodes
-t = [1, 2, 3]
-s1 = res.final_simplex[0][0][0]
-s2 = res.final_simplex[0][0][1]
-s3 = res.final_simplex[0][0][2]
-H1 = res.final_simplex[0][1][0]
-H2 = res.final_simplex[0][1][1]
-H3 = res.final_simplex[0][1][2]
+
+
+
+# find v(t_i)
+def deriv_z1(z, t):
+    v, dv = z
+    return [dv, r * v * (1 - v/K[0]) - m / K[0]]
+
+def deriv_z2(z, t):
+    v, dv = z
+    return [dv, r * v * (1 - v/K[1]) - m/ K[1]]
+
+def deriv_z3(z, t):
+    v, dv = z
+    return [dv, r * v * (1 - v/K[2]) - m / K[2]]
+
+vinit = [0.5, 0]
+s1 = integrate.odeint(deriv_z1, vinit, t)
+s2 = integrate.odeint(deriv_z2, vinit, t)
+s3 = integrate.odeint(deriv_z3, vinit, t)
+
+# Find H
+H1 = r * s1 * (1 - s1 / K[0]) * K[0]
+H2 = r * s2 * (1 - s2 / K[1]) * K[1]
+H3 = r * s3 * (1 - s3 / K[2]) * K[2]
+
 """
 Calculating ecosystem services
 """
@@ -42,9 +66,9 @@ PQ1plot = 32 + ((z1 * S0[0] * K[0] / (1 + z1 * S0[0] * K[0])) - Pi1plot) * 3 * 0
 PQ2plot = 32 + ((z2 * S0[1] * K[1] / (1 + z2 * S0[1] * K[1])) - Pi2plot) * 3 * 0.19 * 11.3
 PQ3plot = 32 + ((z3 * S0[2] * K[2] / (1 + z3 * S0[2] * K[2])) - Pi3plot) * 3 * 0.19 * 11.3
 # Specifying outdoor recreation (recreation days)
-OR1plot = a1 * s1 ** b
-OR2plot = a2 * s2 ** b
-OR3plot = a3 * s3 ** b
+OR1plot = a1 * (s1 ** b)
+OR2plot = a2 * (s2 ** b)
+OR3plot = a3 * (s3 ** b)
 # Specifying hunting (hunting days)
 HT1plot = g1 * Pi1plot - g1 * Pi1plot ** 2
 HT2plot = g2 * Pi2plot - g2 * Pi2plot ** 2
@@ -64,20 +88,21 @@ TV3plot = m0[2] * np.exp(m1[2] * s3)
 """
 Plotting the Results
 """
-"""
+
 # Need to get a loop going to get these plots
 # optimal biomass figure
-plt.plot(t,s1,'r',t,s2,'k',t,s3,'b')
+plt.plot(t,s1,'r',t,s2,'g',t,s3,'b')
 plt.ylabel('Forest biomass (million short tons)')
 plt.xlabel('Time')
 plt.legend(['Watershed 1','Watershed 2', 'Watershed 3'])
 plt.show()
 # optimal fuel management
-plt.plot(t, H1 * s1, 'r', t, H2 * s2, 'k', t, H3 * s3, 'b')
+plt.plot(t, H1 * s1, 'r', t, H2 * s2, 'g', t, H3 * s3, 'b')
 plt.ylabel('Fuel reduction (million short tons)')
 plt.xlabel('Time')
 plt.legend(['Watershed 1', 'Watershed 2', 'Watershed 3'])
 plt.show()
+
 plot_path = 1 # 1 = yes
 if plot_path == 1:
     #Optimal water quality ecosystem service figure
@@ -123,4 +148,3 @@ if plot_path == 1:
     plt.legend(['Pi1', 'Pi2', 'Pi3'])
     plt.show()
 # end
-"""
