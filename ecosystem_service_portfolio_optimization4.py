@@ -85,7 +85,7 @@ eco_services_stddev = std(transpose(eco_services), axis = 0)
 
 ### Derive the Markowitz full efficient portfolios
 n = 10000 # n = 1 returns the minimum risk portfolio
-ef = EfficientFrontier(eco_services_avg, eco_services_cov)
+ef = EfficientFrontier(eco_services, eco_services_avg, eco_services_cov)
 port_return = ef.efficient_return(target_return = 10000.) # the Markowitz portfolio
 portwts_all = ef.clean_weights()
 portrisk_all = ef.efficient_risk(target_risk = 10000.)
@@ -94,11 +94,11 @@ ef.portfolio_performance(verbose = True)
 # find the tangency portfolio
 tangency_portfolio = ef.max_sharpe()
 
+
 """
 calculate the portfolio with simple diversification with equal
 investment in each ecosystem service
 """
-
 num_serv = len(eco_serv)
 port_wts_simple = zeros((1, num_serv))
 
@@ -110,15 +110,7 @@ port_risk_simple = sqrt(matmul(matmul(port_wts_simple, transpose(eco_services_co
 port_return_simple = matmul(port_wts_simple, transpose(eco_services_avg))
 
 """
-Plots
-"""
-## plot Markowitz efficient frontier
-portrisk_all_plt = array([0., 0.274247, 1.5072e-16, 0.0094728, 0.71628]) # plot requires numeric array rather than object returned by portfolio funtions
-port_return_plt = array([2.01248e-13, 9.74549e-17, 3.798136e-15, 9.0207092e-11, 1.])
-tangency_portfolio_plt = array([0., 0.2742471, 1.5072177e-16, 0.00947287, 0.71628003])
-portwts_all_plt = array([0.,0.,0.,0.,1.])
-
-plt.plot(portrisk_all_plt, port_return_plt, 'b', portrisk_all_plt, tangency_portfolio_plt, 'k--') # efficient frontier && capital market line
+plt.plot(portrisk_all_plt, port_return_plt, 'b', yaxis, tangency_portfolio_plt, 'k--') # efficient frontier && capital market line
 # plt.plot(eco_services_stddev[0], eco_services_avg[0], 'b+')
 # plt.plot(eco_services_stddev[1], eco_services_avg[1], 'bs')
 # plt.plot(eco_services_stddev[2], eco_services_avg[2], 'bv')
@@ -127,11 +119,43 @@ plt.plot(portrisk_all_plt, port_return_plt, 'b', portrisk_all_plt, tangency_port
 plt.xlabel('Std. Deviation (%)')
 plt.ylabel('Expected Annual Return (%)')
 plt.show()
+"""
 
+"""
+Calculate entire frontier for plots
+"""
+
+# empty list to store returns, risk, and weights
+port_returns = []
+port_volatility = []
+port_weights = []
+
+# set the number of combinations for portfolios
+num_assets = len(eco_services)
+num_portfolios = len(annual_return)
+
+# populate the empty lists with each portfolios returns risk and weights
+for single_portfolio in range(num_portfolios):
+    weights = random.random(num_assets)
+    weights /= sum(weights)
+    returns = dot(weights, eco_services)
+    volatility = sqrt(dot(weights, dot(eco_services_cov, weights.T)))
+    #volatility = sqrt(matmul(matmul(weights,eco_services_cov), weights.T))
+    port_returns.append(returns)
+    port_volatility.append(volatility)
+    port_weights.append(weights)
+# end
+
+# plot Markowitz Efficient Frontier
+plt.plot(port_volatility, port_returns)
+plt.xlabel('Std. Deviation (%)')
+plt.ylabel('Expected Annual Return (%)')
+plt.show()
+
+# plot portfolio weights
 ## plot portfolio weights
-plt.bar(portwts_all_plt, 'stacked')
+df = DataFrame(port_weights, columns=['Timber', 'Grazing', 'Water yield', 'Water filtration', 'Carbon sequestration'])
+df.plot.area()
 plt.xlabel('Std. Deviation (%)')
 plt.ylabel('Weights')
-plt.axis([0, 1, 0, n])
-plt.legend(['Timber', 'Grazing', 'Water yield', 'Water filtration', 'Carbon sequestration'])
 plt.show()
