@@ -9,9 +9,9 @@ import numpy
 import matplotlib.pyplot as plt
 import math
 import scipy
-import pulp
 import scipy.integrate as integrate
 from scipy.optimize import *
+import pyomo
 
 ### Section One - Parameters
 ## Ecological Parameters
@@ -267,35 +267,43 @@ Domain = [0, K[0]]
     # finite element Use sfepy package
     # Gaussian collocation points numpy.polynomial.legendre.leggauss()
     # Cheby collocation points Chebyshev()
+    # Note: I wouldn't recommend using Chebyshev nodes on this problem unless
+    # there is a reason to believe that the solution is unstable.
 
 
 # Initial Guess
 #if i == 1:
 
-x0 = numpy.polynomial.chebyshev.chebval([0.5 * K[0], 0.5 * K[1], 0.5 * K[2], 0.25 * R[0] *K[0], 0.25 * R[1] * K[1], 0.25 * R[2] * K[2]], t) # Using chebyshev points
-x0 = numpy.array(x0, dtype = numpy.float128)
+### Chebyshev nodes
+#x0 = numpy.polynomial.chebyshev.chebval([0.5 * K[0], 0.5 * K[1], 0.5 * K[2], 0.25 * R[0] *K[0], 0.25 * R[1] * K[1], 0.25 * R[2] * K[2]], t) # Using chebyshev points
+#x0 = numpy.array(x0, dtype = numpy.float128)
 
-"""
-# using gaussian points
-a, b = 0, 10
-f = lambda x: numpy.cos(x)
-# Gaussian default interval is [-1,1]
-deg = 6
-x, w = numpy.polynomial.legendre.leggauss(deg)
-# Translate from default interval
-x0 = 0.5 * (x + 1) * (b - a) + a
-# Using finite elements
-"""
-
+### Spline Interpolation
+s = pandas.Series([0.5 * K[0], 0.5 * K[1], 0.5 * K[2]])
+x0 = s.interpolate(method = 'spline', order = 2) # Order when interpolating should always be = #points - 1
+s_h1 = pandas.Series(0.25 * R[0] *K[0])
+s_h2 = pandas.Series(0.25 * R[1] * K[1])
+s_h3 = pandas.Series(0.25 * R[2] * K[2])
+h1 = s_h1.interpolate(method = 'spline', order = 0) # Order when interpolating should always be = #points - 1
+h2 = s_h2.interpolate(method = 'spline', order = 0)
+h3 = s_h3.interpolate(method = 'spline', order = 0)
 # else
 # Copy solution from previous Nset for initializing next Nset
 # (finer grid)
 #x0 = numpy.polynomial.chebyshev.chebval([s1_init, s2_init, s3_init, h1_init, h2_init, h3_init])
 # end
 
-cbox = numpy.array(numpy.polynomial.chebyshev.chebval([K[0] * 1.5, K[1] * 1.5, K[2] * 1.5, x0[3], x0[4], x0[5]], t), dtype = numpy.float128)
+### Using chebyshev collocation
+# cbox = numpy.array(numpy.polynomial.chebyshev.chebval([K[0] * 1.5, K[1] * 1.5, K[2] * 1.5, x0[3], x0[4], x0[5]], t), dtype = numpy.float128)
+
+### Using Spline Interpolation
+cbox_s = pandas.Series([K[0] * 1.5, K[1] * 1.5, K[2] * 1.5])
+cbox = cbox_s.interpolate(method = 'spline', order = 2)
+cbox_h1
 
 cterm = [] # If we want to impose a T condition, we can add it here
+
+# cbnd defined below
 
 #Specifying percent of watershed covered in Forest
 Pi1 = z1 * x0[0]/(1+z1*x0[0])
@@ -357,16 +365,15 @@ def f(t):
 # Objective: Maximize the integral of the above function (from 0 to infinity) with the initial condition
 # dv_i/dt = [1 - F(phi_i)][g(v_i)-m_i*v_i]
 # and m_i >= 0
-x0 = numpy.array([S0[0] * K[0], S0[1] * K[1], S0[2] * K[2]], dtype = numpy.float128) #initial condition
+cbnd = numpy.array([S0[0] * K[0], S0[1] * K[1], S0[2] * K[2]], dtype = numpy.float128) #initial condition
 # Integrate the above
 
-res = minimize(f, x0, method = 'Nelder-Mead')
+res = minimize(f, cbnd, method = 'Nelder-Mead')
 
 r = 0.05
 m = 0.5
-# Interpolate solutions off of the collocation nodes
 
-
+# Find solutions off of the collocation nodes
 # find v(t_i)
 def deriv_z1(z, t):
     v, dv = z
@@ -390,9 +397,11 @@ H1 = r * s1 * (1 - s1 / K[0]) * K[0]
 H2 = r * s2 * (1 - s2 / K[1]) * K[1]
 H3 = r * s3 * (1 - s3 / K[2]) * K[2]
 
+
 """
 Calculating ecosystem services
 """
+
 # Specifying percent of watershed covered in forest
 Pi1plot = z1 * s1 / (1 + z1 * s1)
 Pi2plot = z2 * z2 / (1 + z2 * s2)
@@ -421,9 +430,11 @@ GZ3plot = AUM[2] * (1 - Pi3plot) * A[2]/allot[2]
 TV1plot = m0[0] * numpy.exp(m1[0] * s1)
 TV2plot = m0[1] * numpy.exp(m1[1] * s2)
 TV3plot = m0[2] * numpy.exp(m1[2] * s3)
+
 """
 Plotting the Results
 """
+
 
 # Need to get a loop going to get these plots
 # optimal biomass figure
@@ -484,3 +495,4 @@ if plot_path == 1:
     plt.legend(['Pi1', 'Pi2', 'Pi3'])
     plt.show()
 # end
+
