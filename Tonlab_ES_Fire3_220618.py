@@ -11,22 +11,23 @@ import math
 import scipy
 import scipy.integrate as integrate
 from scipy.optimize import *
-import pyomo
+from pyomo import environ as pe
+import pandas as pd
 
 ### Section One - Parameters
 ## Ecological Parameters
 
-A = numpy.array([1456, 1456, 1456], dtype = numpy.float128) # average area of watersheds in Montana (square miles)
-B = numpy.array([0.019, 0.019, 0.019], dtype = numpy.float128) # biomass per area (million short tons per square mile) Source: ECALIDATOR
-S0 = numpy.array([0.1, 0.1, 0.1], dtype = numpy.float128) # initial percent of carrying capacity
-R = numpy.array([0.05, 0.05, 0.05], dtype = numpy.float128) # forest biomass intrinsic growth rate
-K = numpy.array(A * B, dtype = numpy.float128) # forest biomass carrying capacity (million short tons per watershed)
+A = numpy.array([1456, 1456, 1456]) # average area of watersheds in Montana (square miles)
+B = numpy.array([0.019, 0.019, 0.019]) # biomass per area (million short tons per square mile) Source: ECALIDATOR
+S0 = numpy.array([0.1, 0.1, 0.1]) # initial percent of carrying capacity
+R = numpy.array([0.05, 0.05, 0.05]) # forest biomass intrinsic growth rate
+K = numpy.array(A * B) # forest biomass carrying capacity (million short tons per watershed)
 beta = 2 # hazard function exponent - when beta = 1 constant hazard rate
 lamda = 0.05 # lamda is intentionally spelled wrong to avoid conflict with built in lambda function
-d1 = numpy.array([1, 0.5, 0], dtype = numpy.float128) # determines relationship between fuel load in watershed i and fire frequency in watershed 1
-d2 = numpy.array([0.25, 1, 0], dtype = numpy.float128) # determines relationship between fuel load in watershed i and fire frequency in watershed 2
-d3 = numpy.array([0.25, 0.5, 1], dtype = numpy.float128) # determines relationship between fuel load in watershed i and fire frequency in watershed 3
-Pibar = numpy.array([0.75, 0.75, 0.75], dtype = numpy.float128) # max percent of watershed covered in forest at carrying capacity
+d1 = numpy.array([1, 0.5, 0]) # determines relationship between fuel load in watershed i and fire frequency in watershed 1
+d2 = numpy.array([0.25, 1, 0]) # determines relationship between fuel load in watershed i and fire frequency in watershed 2
+d3 = numpy.array([0.25, 0.5, 1]) # determines relationship between fuel load in watershed i and fire frequency in watershed 3
+Pibar = numpy.array([0.75, 0.75, 0.75]) # max percent of watershed covered in forest at carrying capacity
 z1 = Pibar[0]/K[0]*(1-Pibar[0]) # calibrated so Pi = Pibar at S=K
 z2 = Pibar[1]/K[1]*(1-Pibar[1]) # calibrated so Pi = Pibar at S=K
 z3 = Pibar[2]/K[2]*(1-Pibar[2]) # calibrated so Pi = Pibar at S=K
@@ -36,16 +37,16 @@ Pi03 = z3*(S0[2]*K[2])/(1+z3*(S0[2]*K[2])) # initial percent of watershed covera
 
 ## Ecosystem service Parameters
 # Water quality
-consumers = numpy.array([81327, 67773, 0], dtype = numpy.float128) # water utility customers (1: Cascade Co (Great Falls), 2: Lewis and Clark Co (Helena), 3: boonies)
+consumers = numpy.array([81327, 67773, 0]) # water utility customers (1: Cascade Co (Great Falls), 2: Lewis and Clark Co (Helena), 3: boonies)
 wpp = 100 # gallons used per day
 gpd = consumers * wpp # size of water treatment plant watershed serves (gallons per day treated)
-WQ = numpy.array(gpd * 365 / 1000000, dtype = numpy.float128)
+WQ = numpy.array(gpd * 365 / 1000000)
 
 # Outdoor recreation
 visitors1 = 2000000/1856.4564 # visitors per sq mile in Custer NF 2003
 visitors2 = 528855/2912 # visitors per sq mile in HLC NF in 2003
 visitors3 = 0
-Rec = numpy.array([visitors1 * A[0], visitors2 * A[1], visitors3 * A[2]], dtype = numpy.float128)
+Rec = numpy.array([visitors1 * A[0], visitors2 * A[1], visitors3 * A[2]])
 b = 0.3
 a1 = Rec[0]/K[0] ** b # a parameterized to = visitors when v = k
 a2 = Rec[1]/K[1] ** b
@@ -61,24 +62,24 @@ g3 = hunt[2] / (0.5 - (0.5 ** 2)) # calibrated so peak of hunter function = hunt
 
 # Grazing (total animal per unit months)
 # GZ = AUM*(1-Pi)*A/ALLOT
-allot = numpy.array([12.266, 12.266, 12.266], dtype = numpy.float128) # size (sq miles) of average grazing allotment in Helena-Lewis and Clark NF
-AUM = numpy.array([50*6*915, 50*6*915, 50*6*915], dtype = numpy.float128) # animal unit month per allotment per year
+allot = numpy.array([12.266, 12.266, 12.266]) # size (sq miles) of average grazing allotment in Helena-Lewis and Clark NF
+AUM = numpy.array([50*6*915, 50*6*915, 50*6*915]) # animal unit month per allotment per year
 
 # Timber Harvesting (value of timber harvested, $)
 # TV = m0*exp(m1*v)
-m0 = numpy.array([10207.968130941700, 0, 10207.968130941700], dtype = numpy.float128)
-m1 = numpy.array([0.073560707399, 0, 0.073560707399], dtype = numpy.float128)
+m0 = numpy.array([10207.968130941700, 0, 10207.968130941700])
+m1 = numpy.array([0.073560707399, 0, 0.073560707399])
 
 # Economic Parameters
 delta_ = 0.4 # discount rate
-PWY = numpy.array([1500, 1500, 300], dtype = numpy.float128) # value of water yield ($/acre feet)
-POR = numpy.array([53.45, 95.96, 0], dtype = numpy.float128) # value of outdoor recreation ($/recreation day)
-PHT = numpy.array([0, 0, 75.99], dtype = numpy.float128) # value of hunting ($/hunting day)
-PGZ = numpy.array([1.69, 1.69, 1.69], dtype = numpy.float128) # grazing fees ($/AUM)
+PWY = numpy.array([1500, 1500, 300]) # value of water yield ($/acre feet)
+POR = numpy.array([53.45, 95.96, 0]) # value of outdoor recreation ($/recreation day)
+PHT = numpy.array([0, 0, 75.99]) # value of hunting ($/hunting day)
+PGZ = numpy.array([1.69, 1.69, 1.69]) # grazing fees ($/AUM)
 # p_st = 350*0.974*1000000 # convert $/MBF to $/million short tons
 # PTM = [p_st, 0, p_st] # mill price for timber ($/million short tons)
 c_st = 216 * 0.974 * 1000000 # convert harvest cost to $/MBF to $/million short tons
-CTM = numpy.array([c_st, 0, c_st], dtype = numpy.float128) # timber harvesting costs ($/million short tons)
+CTM = numpy.array([c_st, 0, c_st]) # timber harvesting costs ($/million short tons)
 
 # Fuel management cost terms
 # The cii terms are calibrated so that with linear costs the breakeven
@@ -86,7 +87,7 @@ CTM = numpy.array([c_st, 0, c_st], dtype = numpy.float128) # timber harvesting c
 alph_, fract = 50000000, 0.25
 c = numpy.matrix([[alph_, fract*alph_],
     [alph_, fract*alph_],
-    [alph_, fract*alph_]], dtype = numpy.float128)
+    [alph_, fract*alph_]])
 
 ### Section 2 - Functional Forms
 plot_fxn = 2 # 0 = no figures, 1 = yes to production functions, 2 = yes to PPF
@@ -279,14 +280,9 @@ Domain = [0, K[0]]
 #x0 = numpy.array(x0, dtype = numpy.float128)
 
 ### Spline Interpolation
-s = pandas.Series([0.5 * K[0], 0.5 * K[1], 0.5 * K[2]])
+s = pd.Series([0.5 * K[0], 0.5 * K[1], 0.5 * K[2], 0.25 * R[0] *K[0], 0.25 * R[1] * K[1], 0.25 * R[2] * K[2]])
 x0 = s.interpolate(method = 'spline', order = 2) # Order when interpolating should always be = #points - 1
-s_h1 = pandas.Series(0.25 * R[0] *K[0])
-s_h2 = pandas.Series(0.25 * R[1] * K[1])
-s_h3 = pandas.Series(0.25 * R[2] * K[2])
-h1 = s_h1.interpolate(method = 'spline', order = 0) # Order when interpolating should always be = #points - 1
-h2 = s_h2.interpolate(method = 'spline', order = 0)
-h3 = s_h3.interpolate(method = 'spline', order = 0)
+
 # else
 # Copy solution from previous Nset for initializing next Nset
 # (finer grid)
@@ -297,9 +293,8 @@ h3 = s_h3.interpolate(method = 'spline', order = 0)
 # cbox = numpy.array(numpy.polynomial.chebyshev.chebval([K[0] * 1.5, K[1] * 1.5, K[2] * 1.5, x0[3], x0[4], x0[5]], t), dtype = numpy.float128)
 
 ### Using Spline Interpolation
-cbox_s = pandas.Series([K[0] * 1.5, K[1] * 1.5, K[2] * 1.5])
+cbox_s = pd.Series([K[0] * 1.5, K[1] * 1.5, K[2] * 1.5, x0[3], x0[4], x0[5]])
 cbox = cbox_s.interpolate(method = 'spline', order = 2)
-cbox_h1
 
 cterm = [] # If we want to impose a T condition, we can add it here
 
@@ -360,14 +355,42 @@ NB3 = PWY[2] * WY3 + POR[2] * OR3 + PHT[2] * HT3 + PGZ[2] * GZ3 + TV3 - PQ3 * WQ
 
 # Define F - Imposing a negative integral to maximize instead of minimize
 def f(t):
-    intgrl, abserr = integrate.quad(lambda t : - numpy.exp(delta_ * t) * ((1 - F1) * NB1 + (1 - F2) * NB2 + (1 - F3) * NB3), 0, numpy.inf)
+    intgrl = integrate.quad(lambda t : - numpy.exp(delta_ * t) * ((1 - F1) * NB1 + (1 - F2) * NB2 + (1 - F3) * NB3), 0, numpy.inf)
     return intgrl
 # Objective: Maximize the integral of the above function (from 0 to infinity) with the initial condition
 # dv_i/dt = [1 - F(phi_i)][g(v_i)-m_i*v_i]
 # and m_i >= 0
-cbnd = numpy.array([S0[0] * K[0], S0[1] * K[1], S0[2] * K[2]], dtype = numpy.float128) #initial condition
+cbnd = numpy.array([S0[0] * K[0], S0[1] * K[1], S0[2] * K[2]]) #initial condition
 # Integrate the above
 
+# Optimize using pyomo (Outline)
+model = AbstractModel()
+# Set initial condition and other parameters
+model.x0 = pe.Set(initialize = x0)
+model.cbox = pe.Set(initialize = cbox)
+model.cbnd = pe.Set(initialize = cbnd)
+model.P = Param(model.cbox,model.cbnd)
+# Initialize t
+model.t = pe.Set(initialize = t)
+# Add model values to the Model
+model.delta = pe.Set(initialize = delta_)
+model.F1 = pe.Set(initialize = F1)
+model.NB1 = pe.Set(initialize = NB1)
+model.F2 = pe.Set(initialize = F2)
+model.NB2 = pe.Set(initialize = NB2)
+model.F3 = pe.Set(initialize = F3)
+model.NB3 = pe.Set(initialize = NB3)
+# Define objective function
+def ObjRule(model):
+    return integrate.quad(numpy.exp(model.delta * model.t) * ((1 - model.F1) * model.NB1 + (1 - model.F2) * model.NB2 + (1 - model.F3) * model.NB3), 0, numpy.inf)
+# end
+model.objective = pe.Objective(rule = ObjRule, sense = pe.maximize)
+opt = SolverFactory('glpk') #scip is also a good solver
+results = opt.solve(model)
+print(results)
+
+
+"""
 res = minimize(f, cbnd, method = 'Nelder-Mead')
 
 r = 0.05
@@ -396,12 +419,12 @@ s3 = integrate.odeint(deriv_z3, vinit, t)
 H1 = r * s1 * (1 - s1 / K[0]) * K[0]
 H2 = r * s2 * (1 - s2 / K[1]) * K[1]
 H3 = r * s3 * (1 - s3 / K[2]) * K[2]
-
+"""
 
 """
 Calculating ecosystem services
 """
-
+"""
 # Specifying percent of watershed covered in forest
 Pi1plot = z1 * s1 / (1 + z1 * s1)
 Pi2plot = z2 * z2 / (1 + z2 * s2)
@@ -432,9 +455,10 @@ TV2plot = m0[1] * numpy.exp(m1[1] * s2)
 TV3plot = m0[2] * numpy.exp(m1[2] * s3)
 
 """
+"""
 Plotting the Results
 """
-
+"""
 
 # Need to get a loop going to get these plots
 # optimal biomass figure
@@ -495,4 +519,4 @@ if plot_path == 1:
     plt.legend(['Pi1', 'Pi2', 'Pi3'])
     plt.show()
 # end
-
+"""
